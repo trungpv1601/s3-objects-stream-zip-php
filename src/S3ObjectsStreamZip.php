@@ -146,7 +146,7 @@
         }
 
         if ($checkObjectExist) {
-          if ($this->isObjectExist($object)) {
+          if (!$this->isObjectExist($object)) {
             unset($this->objects[$i]);
           }
         }
