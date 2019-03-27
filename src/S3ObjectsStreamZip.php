@@ -76,6 +76,7 @@
       $s3Client = new S3Client(array(
         'version' => $this->auth['version'],
         'region' => $this->auth['region'],
+        'endpoint' => $this->auth['endpoint'],
         'credentials' => array(
           'key' => $this->auth['credentials']['key'],
           'secret' => $this->auth['credentials']['secret']

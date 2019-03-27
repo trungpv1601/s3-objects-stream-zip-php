@@ -11,6 +11,7 @@ S3ObjectsStreamZip is a PHP library to stream objects from AWS S3 as a zip file.
 
 Uses AWS SDK Version 3 to [stream objects directly from S3](https://docs.aws.amazon.com/aws-sdk-php/v3/guide/service/s3-stream-wrapper.html).
 
+> Noted: Add ENDPOINT config support DigitalOcean Spaces
 
 ## Install
 ```
