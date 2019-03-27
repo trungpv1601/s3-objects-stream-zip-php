@@ -10,6 +10,8 @@
   {
     protected $auth = array();
     protected $s3Client;
+    protected $objects = array();
+    protected $bucket;
 
     public function __construct($auth)
     {
@@ -19,16 +21,17 @@
 
     public function zipObjects($bucket, $objects, $zipname, $checkObjectExist = false)
     {
+      $this->objects = $objects;
+      $this->bucket = $bucket;
+
       $this->paramsValidation(array(
-        "bucket" => $bucket,
-        "objects" => $objects,
         "zipname" => $zipname,
         "checkObjectExist" => $checkObjectExist
       ));
 
       $zip = new ZipStream($zipname);
 
-      foreach ($objects as $object) {
+      foreach ($this->objects as $object) {
         $objectName = isset($object['name']) ? $object['name'] : basename($object['path']);
 
         $context = stream_context_create(array(
@@ -36,7 +39,7 @@
         ));
 
         // https://docs.aws.amazon.com/aws-sdk-php/v3/guide/service/s3-stream-wrapper.html#downloading-data
-        $objectDir = "s3://{$bucket}/{$object['path']}";
+        $objectDir = "s3://{$this->bucket}/{$object['path']}";
 
         if ($stream = fopen($objectDir, 'r', false, $context)) {
           $zip->addFileFromStream($objectName, $stream);
@@ -90,51 +93,51 @@
     protected function paramsValidation($params)
     {
       // bucket validation
-      $this->bucketValidation($params["bucket"]);
+      $this->bucketValidation();
 
       // objects validation
-      $this->objectsValidation($params["bucket"], $params["objects"], $params["checkObjectExist"]);
+      $this->objectsValidation($params["checkObjectExist"]);
 
       // zipname validation
       $this->zipnameValidation($params["zipname"]);
     }
 
-    protected function bucketValidation($bucket)
+    protected function bucketValidation()
     {
-      if (!isset($bucket)) {
+      if (!isset($this->bucket)) {
         throw new InvalidParamsException('The parameter `bucket` is required.');
       }
-      else if (empty($bucket)) {
+      else if (empty($this->bucket)) {
         throw new InvalidParamsException('The parameter `bucket` cannot be an empty string.');
       }
 
       try {
         // http://docs.aws.amazon.com/aws-sdk-php/v3/api/api-s3-2006-03-01.html#headbucket
         $this->s3Client->headBucket(array(
-          'Bucket' => $bucket
+          'Bucket' => $this->bucket
         ));
       }
       catch (S3Exception $e) {
-        throw new InvalidParamsException("Bucket `{$bucket}` does not exists and/or you have not permission to access it.");
+        throw new InvalidParamsException("Bucket `{$this->bucket}` does not exists and/or you have not permission to access it.");
       }
     }
 
-    protected function objectsValidation($bucket, $objects, $checkObjectExist)
+    protected function objectsValidation($checkObjectExist)
     {
-      if (!isset($objects)) {
+      if (!isset($this->objects)) {
         throw new InvalidParamsException('The parameter `objects` is required.');
       }
-      else if (!is_array($objects)) {
+      else if (!is_array($this->objects)) {
         throw new InvalidParamsException('The parameter `objects` must be an array.');
       }
-      else if (empty($objects)) {
+      else if (empty($this->objects)) {
         throw new InvalidParamsException('The parameter `objects` cannot be an empty array.');
       }
-      else if (!is_array(current($objects))) {
+      else if (!is_array(current($this->objects))) {
         throw new InvalidParamsException('The array `objects` requires a `path` attribute.');
       }
 
-      foreach ($objects as $object) {
+      foreach ($this->objects as $i => $object) {
         if (!array_key_exists('path', $object)) {
           throw new InvalidParamsException('The array `objects` requires an nested array with `path` attribute.');
         }
@@ -143,15 +146,17 @@
         }
 
         if ($checkObjectExist) {
-          $this->doesObjectExist($bucket, $object);
+          if ($this->isObjectExist($object)) {
+            unset($this->objects[$i]);
+          }
         }
       }
     }
 
-    protected function doesObjectExist($bucket, $object)
+    protected function doesObjectExist($object)
     {
       // https://docs.aws.amazon.com/aws-sdk-php/v3/guide/service/s3-stream-wrapper.html#other-object-functions
-      $objectDir = "s3://{$bucket}/{$object['path']}";
+      $objectDir = "s3://{$this->bucket}/{$object['path']}";
 
       if (!file_exists($objectDir)) {
         throw new InvalidParamsException("The object `{$object['path']}` you have requested does not exist.");
@@ -159,6 +164,20 @@
       else if (!is_file($objectDir)) {
         throw new InvalidParamsException("The action cannot be completed because `{$object['path']}` it's not an object.");
       }
+    }
+
+    protected function isObjectExist($object)
+    {
+      // https://docs.aws.amazon.com/aws-sdk-php/v3/guide/service/s3-stream-wrapper.html#other-object-functions
+      $objectDir = "s3://{$this->bucket}/{$object['path']}";
+
+      if (!file_exists($objectDir)) {
+        return false;
+      }
+      else if (!is_file($objectDir)) {
+        return false;
+      }
+      return true;
     }
 
     protected function zipnameValidation($zipname)
